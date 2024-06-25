@@ -8,7 +8,7 @@ in [bevy](https://bevyengine.org/).
 ## Development
 
 > [!WARNING]
-> UNDER DEVELOPMENT, EXPECT BRAKING CHANGES
+> UNDER DEVELOPMENT, EXPECT BREAKING CHANGES
 
 ## Simple Example
 
