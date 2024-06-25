@@ -134,7 +134,7 @@ Result<ReflectSetSuccess, ReflectError>
 
 Toggle between the previous/next enum variants.
 
-Also works with data variants, provided the variant implements `Default`.
+Also works with data variants, provided the variant implements and reflects `Default`.
 
 > Does not require knowing the underlying type.<br />
 > **Important:** Does not wrap around when reaching the beginning or end of
