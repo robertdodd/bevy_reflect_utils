@@ -1,10 +1,6 @@
 use std::any::TypeId;
 
-use bevy::{
-    prelude::*,
-    reflect::{serde::ReflectSerializer, TypeRegistry},
-    scene::ron,
-};
+use bevy::{prelude::*, reflect::TypeRegistry};
 
 use crate::*;
 
@@ -48,13 +44,7 @@ pub fn reflect_component_read_path_serialized(
         &type_registry,
         component_type_id,
         path,
-        |field| {
-            let serializer = ReflectSerializer::new(field, &type_registry);
-            let ron_string =
-                ron::ser::to_string_pretty(&serializer, ron::ser::PrettyConfig::default())
-                    .map_err(|err| ReflectError::Serialize(format!("{err:?}")))?;
-            Ok(ron_string)
-        },
+        |field| serialize_reflect_value(&type_registry, field),
     )?
 }
 

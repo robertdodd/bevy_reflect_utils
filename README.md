@@ -177,7 +177,7 @@ Result<String, ReflectError>
 Example:
 
 ```rust
-Ok("{\n    \"f32\": 0.5,\n}")
+Ok("{\"f32\":0.5}")
 ```
 
 ### Set Serialized Value
@@ -185,7 +185,7 @@ Ok("{\n    \"f32\": 0.5,\n}")
 > Does not require knowing the underlying type.
 
 ```rust
-target.set_value_serialized(world, "{\n    \"f32\": 0.5,\n}".to_string());
+target.set_value_serialized(world, "{\"f32\":0.5}".to_string());
 ```
 
 Return Value:
@@ -199,7 +199,7 @@ Result<ReflectSetSuccess, ReflectError>
 > Does not require knowing the underlying type.
 
 ```rust
-target.partial_eq_serialized(world, "{\n    \"f32\": 0.5,\n}".to_string());
+target.partial_eq_serialized(world, "{\"f32\":0.5}".to_string());
 ```
 
 Return Value:

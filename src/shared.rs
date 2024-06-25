@@ -28,15 +28,14 @@ pub fn deserialize_reflect_value(
         .map_err(|err| ReflectError::Deserialize(format!("{err:?}")))
 }
 
-pub fn serialize_reflect_value<T: Reflect>(
+pub fn serialize_reflect_value(
     type_registry: &TypeRegistry,
-    value: &T,
+    value: &dyn Reflect,
 ) -> Result<String, ReflectError> {
     // By default, all derived `Reflect` types can be Serialized using serde. No need to derive
     // Serialize!
     let serializer = ReflectSerializer::new(value, type_registry);
-    ron::ser::to_string_pretty(&serializer, ron::ser::PrettyConfig::default())
-        .map_err(|err| ReflectError::Serialize(format!("{err:?}")))
+    ron::ser::to_string(&serializer).map_err(|err| ReflectError::Serialize(format!("{err:?}")))
 }
 
 pub fn serialize_reflect_value_from_world<T: Reflect>(
