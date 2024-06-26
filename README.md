@@ -229,7 +229,7 @@ The primary error type is [`ReflectError`](https://github.com/robertdodd/bevy_re
 
 ## Set Value Return Type
 
-Most operations that set a value have the followign return type:
+Most operations that set a value have the following return type:
 
 ```rust
 Result<ReflectSetSuccess, ReflectError>
