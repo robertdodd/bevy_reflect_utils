@@ -10,6 +10,16 @@ in [bevy](https://bevyengine.org/).
 > [!WARNING]
 > UNDER DEVELOPMENT, EXPECT BREAKING CHANGES
 
+## Motivation
+
+This library was written to build re-usable UI widgets.
+
+Reflection code is usually very verbose and hard to follow. The functions in this library only require a `ReflectTarget`
+pointing to a field and an `&mut World`, and return an easy-to-handle `Result<T, ReflectError>`.
+
+The [menu](https://github.com/robertdodd/bevy_reflect_utils/blob/master/examples/menu.rs) (`cargo run --example menu`)
+example demonstrates a few simple UI widgets used on a settings page.
+
 ## Simple Example
 
 ```rust
