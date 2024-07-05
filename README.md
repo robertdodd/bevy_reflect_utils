@@ -249,7 +249,8 @@ pub enum ReflectSetSuccess {
 
 | `bevy_reflect_utils` | `bevy` |
 |:---------------------|:-------|
-| `0.x`                | `0.13` |
+| `0.2`                | `0.14` |
+| `0.1`                | `0.13` |
 
 ## License
 
