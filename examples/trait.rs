@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{color::palettes::css, prelude::*};
 
 use bevy_reflect_utils::*;
 
@@ -34,10 +34,10 @@ impl Interactable for LightButton {
 
     fn get_colors(&self, interaction: Interaction) -> InteractionColors {
         match (self.selected, interaction) {
-            (true, _) => InteractionColors::new(Color::ORANGE_RED, Color::WHITE),
-            (_, Interaction::Pressed) => InteractionColors::new(Color::GRAY, Color::BLACK),
-            (_, Interaction::Hovered) => InteractionColors::new(Color::YELLOW, Color::BLACK),
-            (_, Interaction::None) => InteractionColors::new(Color::ANTIQUE_WHITE, Color::BLACK),
+            (true, _) => InteractionColors::new(css::ORANGE_RED, css::WHITE),
+            (_, Interaction::Pressed) => InteractionColors::new(css::GRAY, css::BLACK),
+            (_, Interaction::Hovered) => InteractionColors::new(css::YELLOW, css::BLACK),
+            (_, Interaction::None) => InteractionColors::new(css::ANTIQUE_WHITE, css::BLACK),
         }
     }
 }
@@ -56,10 +56,10 @@ impl Interactable for DarkButton {
 
     fn get_colors(&self, interaction: Interaction) -> InteractionColors {
         match (self.selected, interaction) {
-            (true, _) => InteractionColors::new(Color::ORANGE_RED, Color::WHITE),
-            (_, Interaction::Pressed) => InteractionColors::new(Color::BLACK, Color::WHITE),
-            (_, Interaction::Hovered) => InteractionColors::new(Color::GRAY, Color::WHITE),
-            (_, Interaction::None) => InteractionColors::new(Color::DARK_GRAY, Color::WHITE),
+            (true, _) => InteractionColors::new(css::ORANGE_RED, css::WHITE),
+            (_, Interaction::Pressed) => InteractionColors::new(css::BLACK, css::WHITE),
+            (_, Interaction::Hovered) => InteractionColors::new(css::GRAY, css::WHITE),
+            (_, Interaction::None) => InteractionColors::new(css::DARK_GRAY, css::WHITE),
         }
     }
 }
@@ -74,9 +74,10 @@ pub struct InteractionColors {
 }
 
 impl InteractionColors {
-    pub fn new(background: Color, border_and_text: Color) -> Self {
+    pub fn new(background: impl Into<Color>, border_and_text: impl Into<Color>) -> Self {
+        let border_and_text = border_and_text.into();
         Self {
-            background,
+            background: background.into(),
             border: border_and_text,
             text: border_and_text,
         }
@@ -94,9 +95,9 @@ fn setup(mut commands: Commands) {
             p,
             "Not Interactable",
             (),
-            Color::TURQUOISE,
-            Color::WHITE,
-            Color::BLACK,
+            css::TURQUOISE,
+            css::WHITE,
+            css::BLACK,
         );
 
         // Spawn a button that contains both trait components
@@ -104,9 +105,9 @@ fn setup(mut commands: Commands) {
             p,
             "Both Traits",
             (DarkButton::default(), LightButton::default()),
-            Color::TURQUOISE,
-            Color::WHITE,
-            Color::BLACK,
+            css::TURQUOISE,
+            css::WHITE,
+            css::BLACK,
         );
     });
 }
@@ -251,9 +252,9 @@ fn button_widget(
     parent: &mut ChildBuilder,
     value: impl Into<String>,
     extras: impl Bundle,
-    background_color: Color,
-    border_color: Color,
-    text_color: Color,
+    background_color: impl Into<BackgroundColor>,
+    border_color: impl Into<BorderColor>,
+    text_color: impl Into<Color>,
 ) {
     parent
         .spawn((
@@ -264,7 +265,7 @@ fn button_widget(
                     padding: UiRect::all(Val::Px(10.)),
                     border: UiRect::all(Val::Px(1.)),
                     margin: UiRect::bottom(Val::Px(10.)),
-                    min_width: Val::Px(150.),
+                    min_width: Val::Px(250.),
                     ..default()
                 },
                 background_color: background_color.into(),
@@ -277,7 +278,7 @@ fn button_widget(
             p.spawn(TextBundle::from_section(
                 value,
                 TextStyle {
-                    color: text_color,
+                    color: text_color.into(),
                     ..default()
                 },
             ));

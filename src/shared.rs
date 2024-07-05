@@ -3,7 +3,7 @@ use std::any::TypeId;
 use bevy::{
     prelude::*,
     reflect::{
-        serde::{ReflectSerializer, UntypedReflectDeserializer},
+        serde::{ReflectDeserializer, ReflectSerializer},
         DynamicEnum, DynamicStruct, DynamicTuple, DynamicVariant, TypeRegistry, VariantInfo,
     },
     scene::ron,
@@ -20,7 +20,7 @@ pub fn deserialize_reflect_value(
     let type_registry = app_type_registry.read();
 
     // De-serialize the value
-    let reflect_deserializer = UntypedReflectDeserializer::new(&type_registry);
+    let reflect_deserializer = ReflectDeserializer::new(&type_registry);
     let mut deserializer = ron::de::Deserializer::from_str(serialized_value)
         .map_err(|err| ReflectError::Deserialize(format!("{err:?}")))?;
     reflect_deserializer
