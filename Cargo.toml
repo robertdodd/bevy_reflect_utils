@@ -12,5 +12,5 @@ categories = ["gui", "game-development"]
 readme = "README.md"
 
 [dependencies]
-bevy = "0.13"
+bevy = "0.14"
 serde = { version = "1.0", features = [ "derive"] }
