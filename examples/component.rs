@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{color::palettes::css, prelude::*};
 
 use bevy_reflect_utils::*;
 
@@ -289,7 +289,7 @@ fn button_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: im
                     padding: UiRect::all(Val::Px(10.)),
                     ..default()
                 },
-                background_color: Color::GRAY.into(),
+                background_color: css::GRAY.into(),
                 ..default()
             },
             extras,

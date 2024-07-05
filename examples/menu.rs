@@ -2,7 +2,7 @@
 
 use std::slice::Iter;
 
-use bevy::{prelude::*, reflect::TypeRegistry};
+use bevy::{color::palettes::css, prelude::*, reflect::TypeRegistry};
 use serde::Deserialize;
 
 use bevy_reflect_utils::*;
@@ -110,14 +110,15 @@ impl ThemeColor {
 impl From<ThemeColor> for Color {
     fn from(value: ThemeColor) -> Self {
         match value {
-            ThemeColor::Red => Color::RED,
-            ThemeColor::Green => Color::GREEN,
-            ThemeColor::Blue => Color::BLUE,
-            ThemeColor::Yellow => Color::YELLOW,
-            ThemeColor::Orange => Color::ORANGE,
-            ThemeColor::Maroon => Color::MAROON,
-            ThemeColor::Turquoise => Color::TURQUOISE,
+            ThemeColor::Red => css::RED,
+            ThemeColor::Green => css::GREEN,
+            ThemeColor::Blue => css::BLUE,
+            ThemeColor::Yellow => css::YELLOW,
+            ThemeColor::Orange => css::ORANGE,
+            ThemeColor::Maroon => css::MAROON,
+            ThemeColor::Turquoise => css::TURQUOISE,
         }
+        .into()
     }
 }
 
@@ -682,7 +683,7 @@ fn button_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: im
                     padding: UiRect::all(Val::Px(10.)),
                     ..default()
                 },
-                background_color: Color::GRAY.into(),
+                background_color: css::GRAY.into(),
                 ..default()
             },
             extras,
@@ -897,11 +898,12 @@ pub fn button_grid_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut 
             style: Style {
                 width: Val::Percent(100.),
                 display: Display::Grid,
-                grid_template_columns: RepeatedGridTrack::fr(column_count, 1.),
-                grid_template_rows: RepeatedGridTrack::min_content(1),
+                grid_template_columns: RepeatedGridTrack::px(column_count, 40.),
+                grid_template_rows: RepeatedGridTrack::px(2, 40.),
                 column_gap: Val::Px(gap),
                 row_gap: Val::Px(gap),
                 justify_content: JustifyContent::SpaceBetween,
+                align_content: AlignContent::SpaceBetween,
                 ..default()
             },
             ..default()
