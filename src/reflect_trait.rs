@@ -15,7 +15,7 @@ pub fn with_reflect_trait_on_entity_world<T: TypeData, R>(
 ) -> Result<R, ReflectError> {
     let entity_ref = world
         .get_entity(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
 
     let app_type_registry = world.resource::<AppTypeRegistry>();
     let type_registry = app_type_registry.read();
@@ -52,7 +52,7 @@ pub fn with_reflect_trait_on_entity_mut_world<T: TypeData, R>(
 
         let mut entity_mut = world
             .get_entity_mut(entity)
-            .ok_or(ReflectError::EntityNotFound)?;
+            .map_err(|_| ReflectError::EntityNotFound)?;
 
         with_reflect_trait_on_entity_mut(&type_registry, &mut entity_mut, type_id, get_fn)
     })
@@ -83,7 +83,7 @@ pub fn reflect_find_trait_on_entity<T: TypeData, R>(
 ) -> Result<Option<R>, ReflectError> {
     let entity_ref = world
         .get_entity(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
 
     let app_type_registry = world.resource::<AppTypeRegistry>();
     let type_registry = app_type_registry.read();
@@ -205,7 +205,7 @@ pub fn reflect_trait_iter<T: TypeData>(
 ) -> Result<(), ReflectError> {
     let entity_ref = world
         .get_entity(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
 
     let app_type_registry = world.resource::<AppTypeRegistry>();
     let type_registry = app_type_registry.read();
@@ -278,7 +278,7 @@ pub fn reflect_trait_iter_mut<T: TypeData>(
 ) -> Result<(), ReflectError> {
     let entity_ref = world
         .get_entity(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
 
     // Collect a vector of component `TypeId`s from the entity.
     // We need to collect them first because we need mutable world access below.
@@ -311,7 +311,7 @@ pub fn reflect_trait_iter_mut<T: TypeData>(
             for (reflect_trait, reflect_component) in reflect_iter {
                 let mut entity_mut = world
                     .get_entity_mut(entity)
-                    .ok_or(ReflectError::EntityNotFound)?;
+                    .map_err(|_| ReflectError::EntityNotFound)?;
                 if let Some(mut reflect_value) = reflect_component.reflect_mut(&mut entity_mut) {
                     // Call `callback`. Break the loop if it returns `true`.
                     let must_continue = callback(reflect_value.as_reflect_mut(), reflect_trait);

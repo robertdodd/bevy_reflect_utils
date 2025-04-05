@@ -12,7 +12,7 @@ pub fn reflect_resource_read_path<T: Reflect + Clone>(
 ) -> Result<T, ReflectError> {
     with_resource_reflect_field(world, resource_type_id, path, |field| {
         field
-            .downcast_ref::<T>()
+            .try_downcast_ref::<T>()
             .cloned()
             .ok_or(ReflectError::InvalidDowncast)
     })?
@@ -41,8 +41,11 @@ pub fn reflect_resource_set_path<T: Reflect>(
     value: T,
 ) -> ReflectSetResult {
     with_resource_reflect_field_mut(world, resource_type_id, path, |reflect_field| {
+        let reflect_field = reflect_field
+            .try_as_reflect_mut()
+            .ok_or(ReflectError::InvalidDowncast)?;
         let value: Box<dyn Reflect> = Box::new(value);
-        let is_eq = reflect_field.reflect_partial_eq(value.as_reflect());
+        let is_eq = reflect_field.reflect_partial_eq(value.as_partial_reflect());
         match is_eq {
             Some(true) => Ok(ReflectSetSuccess::NoChanges),
             _ => match reflect_field.set(value) {
@@ -66,10 +69,10 @@ pub fn reflect_resource_set_path_serialized(
     let value = deserialize_reflect_value(world, serialized_value)?;
 
     with_resource_reflect_field_mut(world, resource_type_id, path, |reflect_field| {
-        let is_eq = reflect_field.reflect_partial_eq(value.as_reflect());
+        let is_eq = reflect_field.reflect_partial_eq(value.as_partial_reflect());
         match is_eq {
             Some(true) => Ok(ReflectSetSuccess::NoChanges),
-            _ => match reflect_field.set(value) {
+            _ => match reflect_field.try_apply(value.as_partial_reflect()) {
                 Ok(_) => Ok(ReflectSetSuccess::Changed),
                 // NOTE: The error message contained below is not useful, it is usually the name of the dynamic type,
                 // e.g. "DynamicStruct".
@@ -90,7 +93,7 @@ pub fn reflect_resource_partial_eq_serialized(
     let value = deserialize_reflect_value(world, serialized_value)?;
 
     with_resource_reflect_field(world, resource_type_id, path, |reflect_field| {
-        let is_eq = reflect_field.reflect_partial_eq(value.as_reflect());
+        let is_eq = reflect_field.reflect_partial_eq(value.as_partial_reflect());
         is_eq.ok_or(ReflectError::PartialEq)
     })?
 }
@@ -164,7 +167,7 @@ pub fn with_resource_reflect_field_mut<T>(
     world: &mut World,
     resource_type_id: TypeId,
     path: &str,
-    update_fn: impl FnOnce(&mut dyn Reflect) -> T,
+    update_fn: impl FnOnce(&mut dyn PartialReflect) -> T,
 ) -> Result<T, ReflectError> {
     let app_type_registry = world.resource::<AppTypeRegistry>().clone();
     let type_registry = app_type_registry.read();
@@ -208,7 +211,7 @@ pub fn with_resource_reflect_field<T>(
     world: &World,
     resource_type_id: TypeId,
     path: &str,
-    read_fn: impl FnOnce(&dyn Reflect) -> T,
+    read_fn: impl FnOnce(&dyn PartialReflect) -> T,
 ) -> Result<T, ReflectError> {
     with_resource_reflect(world, resource_type_id, |dyn_reflect| {
         dyn_reflect

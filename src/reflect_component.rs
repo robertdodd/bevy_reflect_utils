@@ -18,9 +18,9 @@ pub fn reflect_component_read_path<T: Reflect + Clone>(
         path,
         |field| {
             field
-                .downcast_ref::<T>()
-                .cloned()
+                .try_downcast_ref::<T>()
                 .ok_or(ReflectError::InvalidDowncast)
+                .cloned()
         },
     )?
 }
@@ -37,7 +37,7 @@ pub fn reflect_component_read_path_serialized(
 
     let entity_ref = world
         .get_entity(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
 
     with_component_reflect_field(
         &entity_ref,
@@ -64,7 +64,7 @@ pub fn reflect_component_partial_eq_serialized(
 
     let entity_ref = world
         .get_entity(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
 
     with_component_reflect_field(
         &entity_ref,
@@ -72,7 +72,7 @@ pub fn reflect_component_partial_eq_serialized(
         component_type_id,
         path,
         |reflect_field| {
-            let is_eq = reflect_field.reflect_partial_eq(value.as_reflect());
+            let is_eq = reflect_field.reflect_partial_eq(value.as_partial_reflect());
             is_eq.ok_or(ReflectError::PartialEq)
         },
     )?
@@ -87,7 +87,9 @@ pub fn reflect_component_set_path_serialized(
     serialized_value: &str,
 ) -> ReflectSetResult {
     // De-serialize the value into a `Box<dyn Reflect>`
-    let value = deserialize_reflect_value(world, serialized_value)?;
+    let value = deserialize_reflect_value(world, serialized_value)?
+        .try_into_reflect()
+        .map_err(|_| ReflectError::InvalidDowncast)?;
 
     with_reflect_component_field_mut_world(
         world,
@@ -95,7 +97,10 @@ pub fn reflect_component_set_path_serialized(
         entity,
         path,
         |reflect_field| {
-            let is_eq = reflect_field.reflect_partial_eq(value.as_reflect());
+            let reflect_field = reflect_field
+                .try_as_reflect_mut()
+                .ok_or(ReflectError::InvalidDowncast)?;
+            let is_eq = reflect_field.reflect_partial_eq(value.as_partial_reflect());
             match is_eq {
                 Some(true) => Ok(ReflectSetSuccess::NoChanges),
                 _ => match reflect_field.set(value) {
@@ -123,7 +128,7 @@ pub fn reflect_component_read_path_from_world<T: Reflect + Clone>(
 
     let entity_ref = world
         .get_entity(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
 
     reflect_component_read_path(&entity_ref, &type_registry, component_type_id, path)
 }
@@ -142,8 +147,11 @@ pub fn reflect_component_set_path<T: Reflect>(
         entity,
         path,
         |reflect_field| {
+            let reflect_field = reflect_field
+                .try_as_reflect_mut()
+                .ok_or(ReflectError::InvalidDowncast)?;
             let value: Box<dyn Reflect> = Box::new(value);
-            let is_eq = reflect_field.reflect_partial_eq(value.as_reflect());
+            let is_eq = reflect_field.reflect_partial_eq(value.as_partial_reflect());
             match is_eq {
                 Some(true) => Ok(ReflectSetSuccess::NoChanges),
                 _ => match reflect_field.set(value) {
@@ -165,7 +173,7 @@ pub fn reflect_component_apply_path(
     component_type_id: TypeId,
     entity: Entity,
     path: &str,
-    value: &dyn Reflect,
+    value: &dyn PartialReflect,
 ) -> Result<(), ReflectError> {
     with_reflect_component_field_mut_world(world, component_type_id, entity, path, |field| {
         field.apply(value);
@@ -209,10 +217,10 @@ pub fn reflect_copy_shared_component_props(
     let component_type_ids: Vec<TypeId> = {
         let source_entity_ref = world
             .get_entity(source_entity)
-            .ok_or(ReflectError::EntityNotFound)?;
+            .map_err(|_| ReflectError::EntityNotFound)?;
         let target_entity_ref = world
             .get_entity(target_entity)
-            .ok_or(ReflectError::EntityNotFound)?;
+            .map_err(|_| ReflectError::EntityNotFound)?;
         source_entity_ref
             .archetype()
             .components()
@@ -243,7 +251,7 @@ pub fn reflect_copy_shared_component_props(
         // Clone the value from of the source component
         let source_entity_ref = world
             .get_entity(source_entity)
-            .ok_or(ReflectError::EntityNotFound)?;
+            .map_err(|_| ReflectError::EntityNotFound)?;
         let reflect_source = reflect_component
             .reflect(source_entity_ref)
             .ok_or(ReflectError::EntityDoesNotHaveComponent)?;
@@ -252,15 +260,15 @@ pub fn reflect_copy_shared_component_props(
         // // TODO: Remove debug logging when done
         // error!("COPY COMPONENT: {}", registration.type_info().type_path());
         // if let bevy::reflect::ReflectRef::Struct(data) = new_value.reflect_ref() {
-        //     error!("  {:?}", data.as_reflect());
+        //     error!("  {:?}", data.as_partial_reflect());
         // };
 
         // Apply the cloned value to the target entity, if it has the component
         let mut target_entity_ref = world
             .get_entity_mut(target_entity)
-            .ok_or(ReflectError::EntityNotFound)?;
+            .map_err(|_| ReflectError::EntityNotFound)?;
         if let Some(mut reflect_target) = reflect_component.reflect_mut(&mut target_entity_ref) {
-            reflect_target.apply(new_value.as_reflect());
+            reflect_target.apply(new_value.as_partial_reflect());
         }
     }
 
@@ -317,7 +325,7 @@ pub fn with_component_reflect_field<T>(
     type_registry: &TypeRegistry,
     component_type_id: TypeId,
     field_path: &str,
-    read_fn: impl FnOnce(&dyn Reflect) -> T,
+    read_fn: impl FnOnce(&dyn PartialReflect) -> T,
 ) -> Result<T, ReflectError> {
     let registration = type_registry
         .get(component_type_id)
@@ -361,7 +369,7 @@ pub fn with_reflect_component_field_mut_world<T>(
     component_type_id: TypeId,
     entity: Entity,
     path: &str,
-    update_fn: impl FnOnce(&mut dyn Reflect) -> T,
+    update_fn: impl FnOnce(&mut dyn PartialReflect) -> T,
 ) -> Result<T, ReflectError> {
     let app_type_registry = world.resource::<AppTypeRegistry>().clone();
     let type_registry = app_type_registry.read();
@@ -374,7 +382,7 @@ pub fn with_reflect_component_field_mut_world<T>(
         .ok_or(ReflectError::TypeRegistrationInvalidCast)?;
     let mut entity_mut = world
         .get_entity_mut(entity)
-        .ok_or(ReflectError::EntityNotFound)?;
+        .map_err(|_| ReflectError::EntityNotFound)?;
     let mut dyn_reflect = reflect_component
         .reflect_mut(&mut entity_mut)
         .ok_or(ReflectError::EntityDoesNotHaveComponent)?;

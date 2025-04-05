@@ -30,7 +30,7 @@ pub fn reflect_component_read_enum_variant_name_from_world(
     let app_type_registry = world.resource::<AppTypeRegistry>();
     let type_registry = app_type_registry.read();
 
-    if let Some(entity_ref) = world.get_entity(entity) {
+    if let Ok(entity_ref) = world.get_entity(entity) {
         reflect_component_read_enum_variant_name(
             &entity_ref,
             &type_registry,
@@ -99,7 +99,7 @@ pub fn reflect_component_toggle_enum_variant(
             let next_variant = get_next_enum_variant(dyn_enum, &type_registry, direction, wrap)?;
             match next_variant {
                 NextEnumVariant::Ok(next_value) => {
-                    field.apply(next_value.as_reflect());
+                    field.apply(next_value.as_partial_reflect());
                     Ok(ReflectSetSuccess::Changed)
                 }
                 NextEnumVariant::NoChanges => Ok(ReflectSetSuccess::NoChanges),
@@ -133,7 +133,7 @@ pub fn reflect_resource_toggle_enum_variant(
             let next_variant = get_next_enum_variant(dyn_enum, &type_registry, direction, wrap)?;
             match next_variant {
                 NextEnumVariant::Ok(next_value) => {
-                    field.apply(next_value.as_reflect());
+                    field.apply(next_value.as_partial_reflect());
                     Ok(ReflectSetSuccess::Changed)
                 }
                 NextEnumVariant::NoChanges => Ok(ReflectSetSuccess::NoChanges),

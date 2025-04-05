@@ -29,36 +29,28 @@ struct ExampleLabel;
 
 /// System that spawns the UI for this example.
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 
     // Spawn a full screen, centered node containing text content
     commands
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn(Node {
                 flex_direction: FlexDirection::Column,
                 width: Val::Percent(100.),
                 height: Val::Percent(100.),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 ..default()
-            },
-            ..default()
         })
         .with_children(|p| {
             // Instructions
-            p.spawn(TextBundle::from_section(
-                "Use ARROW_LEFT and ARROW_RIGHT to increase or decrease the value, to maximum of 10 and minimum of -10.",
-                TextStyle::default(),
+            p.spawn(Text::new(
+                "Use ARROW_LEFT and ARROW_RIGHT to increase or decrease the value, to maximum of 10 and minimum of -10."
             ));
 
             // Label showing the value of `ExampleResource::value`
-            p.spawn((
-                ExampleLabel,
-                TextBundle::from_sections([
-                    TextSection::new("Current Value: ", TextStyle::default()),
-                    TextSection::new("", TextStyle::default()),
-                ]),
-            ));
+            p.spawn(Text::new("Current Value: ")).with_children(|p| {
+                p.spawn((ExampleLabel, TextSpan::default()));
+            });
         });
 }
 
@@ -77,7 +69,7 @@ fn handle_input(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
         let target = ReflectTarget::new_resource::<ExampleResource>("value");
 
         // We need world access to perform reflection, so add a one-off command to perform the operation.
-        commands.add(move |world: &mut World| {
+        commands.queue(move |world: &mut World| {
             // Read the current value via reflection
             let current_value = target.read_value::<i32>(world);
 
@@ -98,8 +90,11 @@ fn handle_input(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
 }
 
 /// System that updates value of the text node to display the value of [`ExampleResource::value`].
-fn update_label(mut query: Query<&mut Text, With<ExampleLabel>>, example: Res<ExampleResource>) {
+fn update_label(
+    mut query: Query<&mut TextSpan, With<ExampleLabel>>,
+    example: Res<ExampleResource>,
+) {
     for mut text in query.iter_mut() {
-        text.sections[1].value = format!("{:?}", example.value);
+        text.0 = format!("{:?}", example.value);
     }
 }
