@@ -1,4 +1,8 @@
-use bevy::{color::palettes::css, prelude::*};
+use bevy::{
+    color::palettes::tailwind,
+    ecs::{relationship::RelatedSpawner, spawn::SpawnWith},
+    prelude::{Val::*, *},
+};
 
 use bevy_reflect_utils::*;
 
@@ -6,14 +10,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (
-                setup_new_example_components,
-                update_reflect_labels,
-                handle_i32_click_events,
-            ),
-        )
+        .add_systems(Update, (spawn_form_controls, update_reflect_labels))
         // IMPORTANT: The types you want to operate on must be registered
         .register_type::<ExampleComponent>()
         .run();
@@ -26,7 +23,7 @@ pub struct ExampleComponent {
     value: i32,
 }
 
-/// Component marking the layout node. New panels get inserted here.
+/// Component marking the layout node. New controls nodes get inserted here.
 #[derive(Component)]
 struct Layout;
 
@@ -34,69 +31,67 @@ struct Layout;
 #[derive(Component, Clone)]
 struct ReflectLabelI32(ReflectTarget);
 
-/// Component that will update an `i32` value when it is clicked.
-#[derive(Component, Clone)]
-struct ReflectButtonI32 {
-    target: ReflectTarget,
-    amount: i32,
-    min: Option<i32>,
-    max: Option<i32>,
-}
-
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
 
     // Spawn 2 entities by default
+    // This will trigger 2 control nodes for each of the entities to spawn via the `spawn_form_controls` system.
     commands.spawn(ExampleComponent { value: 1 });
     commands.spawn(ExampleComponent { value: 2 });
 
     // Spawn the layout node
-    root_full_screen_centered_widget(&mut commands, Layout);
+    commands.spawn((ui_root(), Layout));
 }
 
-fn setup_new_example_components(
+/// System that spawns a control panel whenever a new `ExampleComponent` is added.
+fn spawn_form_controls(
     mut commands: Commands,
     query: Query<Entity, Added<ExampleComponent>>,
     layout_query: Query<Entity, With<Layout>>,
 ) {
     for entity in query.iter() {
-        let layout = layout_query.single();
-        commands.entity(layout).with_children(|p| {
-            panel_widget(p, |p| {
-                title_widget(p, format!("Entity {:?}", entity));
-
-                // Spawn a widget controlling `Settings::show_preview`
-                let target = ReflectTarget::new_component::<ExampleComponent>(entity, "value");
-                form_control_widget(p, "Value", (), |p| {
-                    form_button_grid_widget(p, |p| {
-                        button_widget(
-                            p,
-                            "<",
-                            ReflectButtonI32 {
-                                target: target.clone(),
-                                amount: -1,
-                                min: Some(0),
-                                max: Some(10),
+        let layout = layout_query.single().unwrap();
+        let target = ReflectTarget::new_component::<ExampleComponent>(entity, "value");
+        commands.entity(layout).with_child((
+            panel_widget(),
+            children![
+                title_widget(format!("Entity {:?}", entity)),
+                (
+                    form_button_grid_widget(),
+                    // NOTE: we spawn children using `Children::spawn` so that we can add observers to the
+                    // buttons.
+                    Children::spawn(SpawnWith(move |p: &mut RelatedSpawner<ChildOf>| {
+                        // left button
+                        p.spawn(button_widget("<")).observe(on_button_click(
+                            target.clone(),
+                            -1,
+                            Some(0),
+                            Some(10),
+                        ));
+                        // center label
+                        p.spawn((
+                            Node {
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                ..default()
                             },
-                        );
-                        label_widget(p, "", ReflectLabelI32(target.clone()));
-                        button_widget(
-                            p,
-                            ">",
-                            ReflectButtonI32 {
-                                target: target.clone(),
-                                amount: 1,
-                                min: Some(0),
-                                max: Some(10),
-                            },
-                        );
-                    });
-                });
-            });
-        });
+                            children![(Text::default(), ReflectLabelI32(target.clone()))],
+                        ));
+                        // right button
+                        p.spawn(button_widget(">")).observe(on_button_click(
+                            target.clone(),
+                            1,
+                            Some(0),
+                            Some(10),
+                        ));
+                    })),
+                ),
+            ],
+        ));
     }
 }
 
+// TODO: Run this system once when a control is added, and once whenever oncce of the buttons is clicked.
 /// Exclusive system which updates the text value of `ReflectLabel` components.
 fn update_reflect_labels(world: &mut World) {
     let mut query = world.query_filtered::<Entity, With<ReflectLabelI32>>();
@@ -130,162 +125,115 @@ fn update_reflect_labels(world: &mut World) {
     }
 }
 
-/// System that handles click events on `ReflectButtonI32` components.
-fn handle_i32_click_events(
-    mut commands: Commands,
-    query: Query<(&ReflectButtonI32, &Interaction), Changed<Interaction>>,
-) {
-    for (button, interaction) in query.iter() {
-        if *interaction == Interaction::Pressed {
-            // Clone the button so we can move it to the command
-            let button = button.clone();
-
-            commands.queue(move |world: &mut World| {
-                if let Ok(value) = button.target.read_value::<i32>(world) {
-                    let mut new_value = value + button.amount;
-                    if let Some(min) = button.min {
-                        new_value = new_value.max(min);
-                    }
-                    if let Some(max) = button.max {
-                        new_value = new_value.min(max);
-                    }
-                    match button.target.set_value(world, new_value) {
-                        Ok(ReflectSetSuccess::Changed) => info!("Success. Value changed."),
-                        Ok(ReflectSetSuccess::NoChanges) => warn!("Value not changed."),
-                        Err(err) => error!("Set value failed: {err:?}"),
-                    }
+/// Returns an observer system that increments a `ReflectTarget` by a specified amount and constraints when a
+/// `Pointer<Click>` event is triggered.
+fn on_button_click(
+    target: ReflectTarget,
+    amount: i32,
+    min: Option<i32>,
+    max: Option<i32>,
+) -> impl Fn(Trigger<Pointer<Click>>, Commands) {
+    move |_trigger, mut commands| {
+        let target = target.clone();
+        commands.queue(move |world: &mut World| {
+            if let Ok(value) = target.read_value::<i32>(world) {
+                let mut new_value = value + amount;
+                if let Some(min) = min {
+                    new_value = new_value.max(min);
                 }
-            });
-        }
+                if let Some(max) = max {
+                    new_value = new_value.min(max);
+                }
+                match target.set_value(world, new_value) {
+                    Ok(ReflectSetSuccess::Changed) => info!("Success. Value changed."),
+                    Ok(ReflectSetSuccess::NoChanges) => warn!("Value not changed."),
+                    Err(err) => error!("Set value failed: {err:?}"),
+                }
+            }
+        });
     }
 }
 
-fn root_full_screen_centered_widget(commands: &mut Commands, extras: impl Bundle) {
-    commands.spawn((
+fn ui_root() -> impl Bundle {
+    (
         Node {
             flex_direction: FlexDirection::Row,
-            width: Val::Percent(100.),
-            height: Val::Percent(100.),
+            width: Percent(100.),
+            height: Percent(100.),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            column_gap: Px(10.),
+            ..default()
+        },
+        BackgroundColor(tailwind::SLATE_800.into()),
+    )
+}
+
+fn panel_widget() -> impl Bundle {
+    (
+        Node {
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Px(10.)),
+            min_width: Px(200.),
+            row_gap: Px(10.),
+            ..default()
+        },
+        BackgroundColor(tailwind::SLATE_700.into()),
+        BorderRadius::all(Px(10.)),
+    )
+}
+
+fn title_widget<T: Into<String>>(value: T) -> impl Bundle {
+    (
+        Node {
+            width: Percent(100.),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             ..default()
         },
-        extras,
-    ));
+        children![Text::new(value)],
+    )
 }
 
-fn panel_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
-    parent
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(10.)),
-                border: UiRect::all(Val::Px(1.)),
-                min_width: Val::Px(200.),
-                ..default()
-            },
-            BorderColor(Color::WHITE),
-        ))
-        .with_children(children);
-}
-
-fn title_widget(parent: &mut ChildBuilder, value: impl Into<String>) {
-    parent
-        .spawn(Node {
-            width: Val::Percent(100.),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            margin: UiRect::bottom(Val::Px(10.)),
-            ..default()
-        })
-        .with_children(|p| {
-            text_widget(p, value, ());
-        });
-}
-
-fn text_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
-    parent.spawn((Text::new(value), extras));
-}
-
-fn form_control_widget(
-    parent: &mut ChildBuilder,
-    label: impl Into<String>,
-    extras: impl Bundle,
-    children: impl FnOnce(&mut ChildBuilder),
-) {
-    parent
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Column,
-                width: Val::Percent(100.),
-                margin: UiRect::bottom(Val::Px(10.)),
-                ..default()
-            },
-            extras,
-        ))
-        .with_children(|p| {
-            form_label_widget(p, label);
-            children(p);
-        });
-}
-
-fn form_label_widget(parent: &mut ChildBuilder, label: impl Into<String>) {
-    parent
-        .spawn(Node {
+fn form_button_grid_widget() -> impl Bundle {
+    (
+        Node {
             flex_direction: FlexDirection::Row,
-            width: Val::Percent(100.),
-            margin: UiRect::bottom(Val::Px(10.)),
-            ..default()
-        })
-        .with_children(|p| {
-            text_widget(p, label, ());
-        });
-}
-
-fn form_button_grid_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
-    parent
-        .spawn(Node {
-            flex_direction: FlexDirection::Row,
-            width: Val::Percent(100.),
+            width: Percent(100.),
             display: Display::Grid,
+            padding: UiRect::all(Px(10.)),
             grid_template_columns: vec![
                 RepeatedGridTrack::auto(1),
                 RepeatedGridTrack::fr(1, 1.),
                 RepeatedGridTrack::auto(1),
             ],
-            grid_template_rows: RepeatedGridTrack::min_content(1),
             justify_content: JustifyContent::SpaceBetween,
             ..default()
-        })
-        .with_children(children);
+        },
+        BackgroundColor(tailwind::SLATE_800.into()),
+        BorderRadius::all(Px(10.)),
+    )
 }
 
-fn button_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
-    parent
-        .spawn((
-            Button,
-            Node {
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                padding: UiRect::all(Val::Px(10.)),
-                ..default()
-            },
-            BackgroundColor(css::GRAY.into()),
-            extras,
-        ))
-        .with_children(|p| {
-            text_widget(p, value, ());
-        });
-}
-
-fn label_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
-    parent
-        .spawn(Node {
+fn button_widget<T: Into<String>>(value: T) -> impl Bundle {
+    (
+        Button,
+        Node {
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
+            padding: UiRect::all(Px(4.)),
+            min_width: Px(40.),
             ..default()
-        })
-        .with_children(|p| {
-            text_widget(p, value, extras);
-        });
+        },
+        BackgroundColor(tailwind::RED_500.into()),
+        BorderRadius::all(Px(8.)),
+        BoxShadow::new(
+            Color::BLACK.with_alpha(0.8),
+            Px(0.),
+            Px(8.),
+            Val::Px(-8.),
+            Val::Px(1.),
+        ),
+        children![Text::new(value)],
+    )
 }

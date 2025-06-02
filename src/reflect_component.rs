@@ -255,7 +255,7 @@ pub fn reflect_copy_shared_component_props(
         let reflect_source = reflect_component
             .reflect(source_entity_ref)
             .ok_or(ReflectError::EntityDoesNotHaveComponent)?;
-        let new_value = reflect_source.clone_value();
+        let new_value = reflect_source.to_dynamic();
 
         // // TODO: Remove debug logging when done
         // error!("COPY COMPONENT: {}", registration.type_info().type_path());

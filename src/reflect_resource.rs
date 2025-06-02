@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use bevy::prelude::*;
+use bevy::{ecs::world::error::ResourceFetchError, prelude::*};
 
 use crate::*;
 
@@ -116,7 +116,11 @@ pub fn with_resource_reflect<T>(
         .ok_or(ReflectError::TypeRegistrationInvalidCast)?;
     reflect_resource
         .reflect(world)
-        .ok_or(ReflectError::ResourceDoesNotExist)
+        .map_err(|err| match err {
+            ResourceFetchError::NotRegistered => ReflectError::TypeRegistrationNotFound,
+            ResourceFetchError::DoesNotExist(_) => ReflectError::ResourceDoesNotExist,
+            ResourceFetchError::NoResourceAccess(_) => ReflectError::NoAccess,
+        })
         .map(read_fn)
 }
 
@@ -139,7 +143,11 @@ pub fn with_resource_reflect_mut<T>(
         .ok_or(ReflectError::TypeRegistrationInvalidCast)?;
     reflect_resource
         .reflect_mut(world)
-        .ok_or(ReflectError::ResourceDoesNotExist)
+        .map_err(|err| match err {
+            ResourceFetchError::NotRegistered => ReflectError::TypeRegistrationNotFound,
+            ResourceFetchError::DoesNotExist(_) => ReflectError::ResourceDoesNotExist,
+            ResourceFetchError::NoResourceAccess(_) => ReflectError::NoAccess,
+        })
         .map(update_fn)
 }
 
@@ -180,7 +188,11 @@ pub fn with_resource_reflect_field_mut<T>(
         .ok_or(ReflectError::TypeRegistrationInvalidCast)?;
     let mut dyn_reflect = reflect_resource
         .reflect_mut(world)
-        .ok_or(ReflectError::ResourceDoesNotExist)?;
+        .map_err(|err| match err {
+            ResourceFetchError::NotRegistered => ReflectError::TypeRegistrationNotFound,
+            ResourceFetchError::DoesNotExist(_) => ReflectError::ResourceDoesNotExist,
+            ResourceFetchError::NoResourceAccess(_) => ReflectError::NoAccess,
+        })?;
     dyn_reflect
         .reflect_path_mut(path)
         .map_err(|err| ReflectError::ReflectPath(err.to_string()))
