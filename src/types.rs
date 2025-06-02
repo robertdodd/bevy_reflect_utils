@@ -38,6 +38,8 @@ pub enum ReflectError {
     Deserialize(String),
     /// Reflect PartialEq Failed
     PartialEq,
+    /// Cannot get access to the resource with the given [`ComponentId`] in the world as it conflicts with an on going operation.
+    NoAccess,
 }
 
 impl fmt::Display for ReflectError {
@@ -60,6 +62,7 @@ impl fmt::Display for ReflectError {
             ReflectError::Serialize(err) => write!(f, "Serialization failed: {err}"),
             ReflectError::Deserialize(err) => write!(f, "De-serialization failed: {err}"),
             ReflectError::PartialEq => write!(f, "Reflect PartialEq failed"),
+            ReflectError::NoAccess => write!(f, "No access to resource"),
         }
     }
 }
