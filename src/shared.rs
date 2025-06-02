@@ -15,7 +15,7 @@ use crate::ReflectError;
 pub fn deserialize_reflect_value(
     world: &mut World,
     serialized_value: &str,
-) -> Result<Box<dyn Reflect>, ReflectError> {
+) -> Result<Box<dyn PartialReflect>, ReflectError> {
     let app_type_registry = world.resource_mut::<AppTypeRegistry>();
     let type_registry = app_type_registry.read();
 
@@ -30,7 +30,7 @@ pub fn deserialize_reflect_value(
 
 pub fn serialize_reflect_value(
     type_registry: &TypeRegistry,
-    value: &dyn Reflect,
+    value: &dyn PartialReflect,
 ) -> Result<String, ReflectError> {
     // By default, all derived `Reflect` types can be Serialized using serde. No need to derive
     // Serialize!
@@ -70,7 +70,8 @@ pub fn construct_default_enum_variant(
             for field in struct_info.iter() {
                 let field_default_value = get_default_value_for(type_registry, field.type_id())
                     .ok_or(ReflectError::NoDefaultValue)?;
-                dynamic_struct.insert_boxed(field.name(), field_default_value);
+                dynamic_struct
+                    .insert_boxed(field.name(), field_default_value.into_partial_reflect());
             }
             DynamicVariant::Struct(dynamic_struct)
         }
@@ -79,7 +80,7 @@ pub fn construct_default_enum_variant(
             for field in tuple_info.iter() {
                 let field_default_value = get_default_value_for(type_registry, field.type_id())
                     .ok_or(ReflectError::NoDefaultValue)?;
-                dynamic_tuple.insert_boxed(field_default_value);
+                dynamic_tuple.insert_boxed(field_default_value.into_partial_reflect());
             }
             DynamicVariant::Tuple(dynamic_tuple)
         }

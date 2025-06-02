@@ -243,7 +243,7 @@ pub enum SelectableButton {
 
 /// System that spawns the UI for this example.
 fn setup(mut commands: Commands, settings: Res<Settings>, app_type_registry: Res<AppTypeRegistry>) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 
     let type_registry = app_type_registry.read();
 
@@ -427,9 +427,9 @@ fn update_reflect_labels(world: &mut World) {
         };
 
         // Update the label text
-        if let Some(mut entity_ref) = world.get_entity_mut(*entity) {
+        if let Ok(mut entity_ref) = world.get_entity_mut(*entity) {
             if let Some(mut text) = entity_ref.get_mut::<Text>() {
-                text.sections[0].value = value.unwrap_or("N/A".to_string());
+                text.0 = value.unwrap_or("N/A".to_string());
             }
         }
     }
@@ -443,7 +443,7 @@ fn handle_i32_click_events(
     for (button, interaction) in query.iter() {
         if *interaction == Interaction::Pressed {
             let button = button.clone();
-            commands.add(move |world: &mut World| {
+            commands.queue(move |world: &mut World| {
                 if let Ok(value) = button.target.read_value::<i32>(world) {
                     let mut new_value = value + button.amount;
                     if let Some(min) = button.min {
@@ -473,7 +473,7 @@ fn handle_serialized_click_events(
     for (button, interaction) in query.iter() {
         if *interaction == Interaction::Pressed {
             let button = button.clone();
-            commands.add(move |world: &mut World| {
+            commands.queue(move |world: &mut World| {
                 match button.target.set_value_serialized(world, &button.value) {
                     Ok(ReflectSetSuccess::Changed) => info!("Success. Value changed."),
                     Ok(ReflectSetSuccess::NoChanges) => warn!("Value not changed."),
@@ -495,7 +495,7 @@ fn handle_enum_click_events(
         if *interaction == Interaction::Pressed {
             let target = button.target.clone();
             let direction = button.direction;
-            commands.add(move |world: &mut World| {
+            commands.queue(move |world: &mut World| {
                 match target.toggle_reflect_enum(world, direction) {
                     Ok(ReflectSetSuccess::Changed) => info!("Success. Value changed."),
                     Ok(ReflectSetSuccess::NoChanges) => warn!("Value not changed."),
@@ -538,10 +538,10 @@ fn update_reflect_visibility(world: &mut World) {
         .unwrap_or(reflect_visibility.default_visibility);
 
         if Some(is_visible) != reflect_visibility.is_visible {
-            if let Some(mut entity_mut) = world.get_entity_mut(*entity) {
+            if let Ok(mut entity_mut) = world.get_entity_mut(*entity) {
                 // Update the display value
-                if let Some(mut style) = entity_mut.get_mut::<Style>() {
-                    style.display = match is_visible {
+                if let Some(mut node) = entity_mut.get_mut::<Node>() {
+                    node.display = match is_visible {
                         true => Display::Flex,
                         false => Display::None,
                     };
@@ -567,6 +567,7 @@ fn update_preview(
     settings: Res<Settings>,
     mut query: Query<(&mut BackgroundColor, &mut BorderColor, &Children), With<Preview>>,
     mut text_query: Query<&mut Text>,
+    mut text_color_query: Query<&mut TextColor>,
 ) {
     info!("Settings changed ==> Updating preview");
 
@@ -576,10 +577,10 @@ fn update_preview(
         *border = style.border_color.into();
         for &child in children.iter() {
             if let Ok(mut text) = text_query.get_mut(child) {
-                for section in text.sections.iter_mut() {
-                    section.value = format!("Volume: {}", settings.volume);
-                    section.style.color = style.text_color;
-                }
+                text.0 = format!("Volume: {}", settings.volume);
+            }
+            if let Ok(mut text_color) = text_color_query.get_mut(child) {
+                text_color.0 = style.text_color;
             }
         }
     }
@@ -612,7 +613,7 @@ fn initialize_selectable_buttons(
 ) {
     for (entity, reflect_button) in query.iter() {
         let reflect_button = reflect_button.clone();
-        commands.add(move |world: &mut World| {
+        commands.queue(move |world: &mut World| {
             // read whether it is selected
             let is_selected = reflect_button
                 .target
@@ -620,7 +621,7 @@ fn initialize_selectable_buttons(
                 .unwrap_or(false);
 
             // Update the button state
-            if let Some(mut entity_mut) = world.get_entity_mut(entity) {
+            if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
                 if let Some(mut selectable_button) = entity_mut.get_mut::<SelectableButton>() {
                     *selectable_button = match is_selected {
                         true => SelectableButton::Selected,
@@ -659,33 +660,30 @@ fn handle_selectable_button_clicked(
 
 fn panel_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn((
+            Node {
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(10.)),
                 border: UiRect::all(Val::Px(1.)),
                 min_width: Val::Px(200.),
                 ..default()
             },
-            border_color: Color::WHITE.into(),
-            ..default()
-        })
+            BorderColor(Color::WHITE),
+        ))
         .with_children(children);
 }
 
 fn button_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
     parent
         .spawn((
-            ButtonBundle {
-                style: Style {
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    padding: UiRect::all(Val::Px(10.)),
-                    ..default()
-                },
-                background_color: css::GRAY.into(),
+            Button,
+            Node {
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::all(Val::Px(10.)),
                 ..default()
             },
+            BackgroundColor(css::GRAY.into()),
             extras,
         ))
         .with_children(|p| {
@@ -706,18 +704,16 @@ fn color_button_widget(
     let color: Color = theme_color.into();
 
     parent.spawn((
-        ButtonBundle {
-            style: Style {
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                padding: UiRect::all(Val::Px(10.)),
-                border: UiRect::all(Val::Px(1.)),
-                ..default()
-            },
-            background_color: color.into(),
-            border_color: Color::NONE.into(),
+        Button,
+        Node {
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            padding: UiRect::all(Val::Px(10.)),
+            border: UiRect::all(Val::Px(1.)),
             ..default()
         },
+        BackgroundColor(color),
+        BorderColor(Color::NONE),
         // NOTE: We don't need to know whether it is selected by default, as the `initialize_selectable_buttons` system
         // will set it when the button is added.
         SelectableButton::default(),
@@ -731,12 +727,9 @@ fn color_button_widget(
 
 fn label_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
+        .spawn(Node {
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
             ..default()
         })
         .with_children(|p| {
@@ -746,14 +739,11 @@ fn label_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: imp
 
 fn title_widget(parent: &mut ChildBuilder, value: impl Into<String>) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                margin: UiRect::bottom(Val::Px(10.)),
-                ..default()
-            },
+        .spawn(Node {
+            width: Val::Percent(100.),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            margin: UiRect::bottom(Val::Px(10.)),
             ..default()
         })
         .with_children(|p| {
@@ -765,38 +755,29 @@ fn preview_widget(parent: &mut ChildBuilder, settings: &Settings) {
     let style: ThemeStyle = settings.theme.into();
     parent
         .spawn((
-            NodeBundle {
-                style: Style {
-                    width: Val::Percent(100.),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    padding: UiRect::all(Val::Px(10.)),
-                    border: UiRect::all(Val::Px(1.)),
-                    margin: UiRect::bottom(Val::Px(10.)),
-                    ..default()
-                },
-                background_color: style.background_color.into(),
-                border_color: style.border_color.into(),
+            Node {
+                width: Val::Percent(100.),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::all(Val::Px(10.)),
+                border: UiRect::all(Val::Px(1.)),
+                margin: UiRect::bottom(Val::Px(10.)),
                 ..default()
             },
+            BackgroundColor(style.background_color),
+            BorderColor(style.border_color),
             Preview,
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                format!("Volume: {}", settings.volume),
-                TextStyle {
-                    color: style.text_color,
-                    ..default()
-                },
+            p.spawn((
+                Text::new(format!("Volume: {}", settings.volume)),
+                TextColor(style.text_color),
             ));
         });
 }
 
 fn text_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
-    parent.spawn((
-        TextBundle::from_section(value, TextStyle::default()),
-        extras,
-    ));
+    parent.spawn((Text::new(value), extras));
 }
 
 fn form_control_widget(
@@ -807,13 +788,10 @@ fn form_control_widget(
 ) {
     parent
         .spawn((
-            NodeBundle {
-                style: Style {
-                    flex_direction: FlexDirection::Column,
-                    width: Val::Percent(100.),
-                    margin: UiRect::bottom(Val::Px(10.)),
-                    ..default()
-                },
+            Node {
+                flex_direction: FlexDirection::Column,
+                width: Val::Percent(100.),
+                margin: UiRect::bottom(Val::Px(10.)),
                 ..default()
             },
             extras,
@@ -826,13 +804,10 @@ fn form_control_widget(
 
 fn form_label_widget(parent: &mut ChildBuilder, label: impl Into<String>) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Row,
-                width: Val::Percent(100.),
-                margin: UiRect::bottom(Val::Px(10.)),
-                ..default()
-            },
+        .spawn(Node {
+            flex_direction: FlexDirection::Row,
+            width: Val::Percent(100.),
+            margin: UiRect::bottom(Val::Px(10.)),
             ..default()
         })
         .with_children(|p| {
@@ -842,20 +817,17 @@ fn form_label_widget(parent: &mut ChildBuilder, label: impl Into<String>) {
 
 fn form_button_grid_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Row,
-                width: Val::Percent(100.),
-                display: Display::Grid,
-                grid_template_columns: vec![
-                    RepeatedGridTrack::auto(1),
-                    RepeatedGridTrack::fr(1, 1.),
-                    RepeatedGridTrack::auto(1),
-                ],
-                grid_template_rows: RepeatedGridTrack::min_content(1),
-                justify_content: JustifyContent::SpaceBetween,
-                ..default()
-            },
+        .spawn(Node {
+            flex_direction: FlexDirection::Row,
+            width: Val::Percent(100.),
+            display: Display::Grid,
+            grid_template_columns: vec![
+                RepeatedGridTrack::auto(1),
+                RepeatedGridTrack::fr(1, 1.),
+                RepeatedGridTrack::auto(1),
+            ],
+            grid_template_rows: RepeatedGridTrack::min_content(1),
+            justify_content: JustifyContent::SpaceBetween,
             ..default()
         })
         .with_children(children);
@@ -866,15 +838,12 @@ fn root_full_screen_centered_widget(
     children: impl FnOnce(&mut ChildBuilder),
 ) {
     commands
-        .spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Column,
-                width: Val::Percent(100.),
-                height: Val::Percent(100.),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
             ..default()
         })
         .with_children(children);
@@ -894,18 +863,15 @@ pub fn button_grid_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut 
     let gap = 10.;
 
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                display: Display::Grid,
-                grid_template_columns: RepeatedGridTrack::px(column_count, 40.),
-                grid_template_rows: RepeatedGridTrack::px(2, 40.),
-                column_gap: Val::Px(gap),
-                row_gap: Val::Px(gap),
-                justify_content: JustifyContent::SpaceBetween,
-                align_content: AlignContent::SpaceBetween,
-                ..default()
-            },
+        .spawn(Node {
+            width: Val::Percent(100.),
+            display: Display::Grid,
+            grid_template_columns: RepeatedGridTrack::px(column_count, 40.),
+            grid_template_rows: RepeatedGridTrack::px(2, 40.),
+            column_gap: Val::Px(gap),
+            row_gap: Val::Px(gap),
+            justify_content: JustifyContent::SpaceBetween,
+            align_content: AlignContent::SpaceBetween,
             ..default()
         })
         .with_children(children);

@@ -86,7 +86,7 @@ impl InteractionColors {
 
 /// System that spawns a camera and the UI widgets.
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 
     root_full_screen_centered_widget(&mut commands, |p| {
         interactable_button_widget(p, "Dark Button", DarkButton::default());
@@ -124,7 +124,7 @@ fn handle_interactions(
         let interaction = *interaction;
 
         // Add command to update colors
-        commands.add(move |world: &mut World| {
+        commands.queue(move |world: &mut World| {
             // Handle clicks before updating the colors
             if interaction == Interaction::Pressed {
                 let mut update_count = 0; // used to assert that the closure wasn't called more than once
@@ -162,7 +162,7 @@ fn handle_interactions(
             // Handle the result
             match result {
                 Ok(Some(colors)) => {
-                    if let Some(mut entity_mut) = world.get_entity_mut(entity) {
+                    if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
                         entity_mut.insert(colors);
                     }
                 }
@@ -190,7 +190,7 @@ fn update_interaction_colors(
         ),
         Changed<InteractionColors>,
     >,
-    mut text_query: Query<&mut Text>,
+    mut text_query: Query<&mut TextColor>,
 ) {
     for (colors, children, mut background_color, mut border_color) in query.iter_mut() {
         // Update background and border color
@@ -200,10 +200,8 @@ fn update_interaction_colors(
         // Update text color of children
         if let Some(children) = children {
             for &child in children.iter() {
-                if let Ok(mut text) = text_query.get_mut(child) {
-                    for section in text.sections.iter_mut() {
-                        section.style.color = colors.text;
-                    }
+                if let Ok(mut text_color) = text_query.get_mut(child) {
+                    text_color.0 = colors.text;
                 }
             }
         }
@@ -216,15 +214,12 @@ fn root_full_screen_centered_widget(
     children: impl FnOnce(&mut ChildBuilder),
 ) {
     commands
-        .spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Column,
-                width: Val::Percent(100.),
-                height: Val::Percent(100.),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
             ..default()
         })
         .with_children(children);
@@ -252,35 +247,27 @@ fn button_widget(
     parent: &mut ChildBuilder,
     value: impl Into<String>,
     extras: impl Bundle,
-    background_color: impl Into<BackgroundColor>,
+    background_color: impl Into<Color>,
     border_color: impl Into<BorderColor>,
     text_color: impl Into<Color>,
 ) {
     parent
         .spawn((
-            ButtonBundle {
-                style: Style {
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    padding: UiRect::all(Val::Px(10.)),
-                    border: UiRect::all(Val::Px(1.)),
-                    margin: UiRect::bottom(Val::Px(10.)),
-                    min_width: Val::Px(250.),
-                    ..default()
-                },
-                background_color: background_color.into(),
-                border_color: border_color.into(),
+            Button,
+            Node {
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::all(Val::Px(10.)),
+                border: UiRect::all(Val::Px(1.)),
+                margin: UiRect::bottom(Val::Px(10.)),
+                min_width: Val::Px(250.),
                 ..default()
             },
+            BackgroundColor(background_color.into()),
+            border_color.into(),
             extras,
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                value,
-                TextStyle {
-                    color: text_color.into(),
-                    ..default()
-                },
-            ));
+            p.spawn((Text::new(value), TextColor(text_color.into())));
         });
 }

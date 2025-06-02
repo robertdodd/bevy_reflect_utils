@@ -44,7 +44,7 @@ struct ReflectButtonI32 {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
 
     // Spawn 2 entities by default
     commands.spawn(ExampleComponent { value: 1 });
@@ -122,9 +122,9 @@ fn update_reflect_labels(world: &mut World) {
             .map(|value| format!("{value}"));
 
         // Update the label text
-        if let Some(mut entity_ref) = world.get_entity_mut(*entity) {
+        if let Ok(mut entity_ref) = world.get_entity_mut(*entity) {
             if let Some(mut text) = entity_ref.get_mut::<Text>() {
-                text.sections[0].value = value.unwrap_or("N/A".to_string());
+                text.0 = value.unwrap_or("N/A".to_string());
             }
         }
     }
@@ -140,7 +140,7 @@ fn handle_i32_click_events(
             // Clone the button so we can move it to the command
             let button = button.clone();
 
-            commands.add(move |world: &mut World| {
+            commands.queue(move |world: &mut World| {
                 if let Ok(value) = button.target.read_value::<i32>(world) {
                     let mut new_value = value + button.amount;
                     if let Some(min) = button.min {
@@ -162,15 +162,12 @@ fn handle_i32_click_events(
 
 fn root_full_screen_centered_widget(commands: &mut Commands, extras: impl Bundle) {
     commands.spawn((
-        NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Row,
-                width: Val::Percent(100.),
-                height: Val::Percent(100.),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
+        Node {
+            flex_direction: FlexDirection::Row,
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
             ..default()
         },
         extras,
@@ -179,30 +176,26 @@ fn root_full_screen_centered_widget(commands: &mut Commands, extras: impl Bundle
 
 fn panel_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
+        .spawn((
+            Node {
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(10.)),
                 border: UiRect::all(Val::Px(1.)),
                 min_width: Val::Px(200.),
                 ..default()
             },
-            border_color: Color::WHITE.into(),
-            ..default()
-        })
+            BorderColor(Color::WHITE),
+        ))
         .with_children(children);
 }
 
 fn title_widget(parent: &mut ChildBuilder, value: impl Into<String>) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                margin: UiRect::bottom(Val::Px(10.)),
-                ..default()
-            },
+        .spawn(Node {
+            width: Val::Percent(100.),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            margin: UiRect::bottom(Val::Px(10.)),
             ..default()
         })
         .with_children(|p| {
@@ -211,10 +204,7 @@ fn title_widget(parent: &mut ChildBuilder, value: impl Into<String>) {
 }
 
 fn text_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
-    parent.spawn((
-        TextBundle::from_section(value, TextStyle::default()),
-        extras,
-    ));
+    parent.spawn((Text::new(value), extras));
 }
 
 fn form_control_widget(
@@ -225,13 +215,10 @@ fn form_control_widget(
 ) {
     parent
         .spawn((
-            NodeBundle {
-                style: Style {
-                    flex_direction: FlexDirection::Column,
-                    width: Val::Percent(100.),
-                    margin: UiRect::bottom(Val::Px(10.)),
-                    ..default()
-                },
+            Node {
+                flex_direction: FlexDirection::Column,
+                width: Val::Percent(100.),
+                margin: UiRect::bottom(Val::Px(10.)),
                 ..default()
             },
             extras,
@@ -244,13 +231,10 @@ fn form_control_widget(
 
 fn form_label_widget(parent: &mut ChildBuilder, label: impl Into<String>) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Row,
-                width: Val::Percent(100.),
-                margin: UiRect::bottom(Val::Px(10.)),
-                ..default()
-            },
+        .spawn(Node {
+            flex_direction: FlexDirection::Row,
+            width: Val::Percent(100.),
+            margin: UiRect::bottom(Val::Px(10.)),
             ..default()
         })
         .with_children(|p| {
@@ -260,20 +244,17 @@ fn form_label_widget(parent: &mut ChildBuilder, label: impl Into<String>) {
 
 fn form_button_grid_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut ChildBuilder)) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Row,
-                width: Val::Percent(100.),
-                display: Display::Grid,
-                grid_template_columns: vec![
-                    RepeatedGridTrack::auto(1),
-                    RepeatedGridTrack::fr(1, 1.),
-                    RepeatedGridTrack::auto(1),
-                ],
-                grid_template_rows: RepeatedGridTrack::min_content(1),
-                justify_content: JustifyContent::SpaceBetween,
-                ..default()
-            },
+        .spawn(Node {
+            flex_direction: FlexDirection::Row,
+            width: Val::Percent(100.),
+            display: Display::Grid,
+            grid_template_columns: vec![
+                RepeatedGridTrack::auto(1),
+                RepeatedGridTrack::fr(1, 1.),
+                RepeatedGridTrack::auto(1),
+            ],
+            grid_template_rows: RepeatedGridTrack::min_content(1),
+            justify_content: JustifyContent::SpaceBetween,
             ..default()
         })
         .with_children(children);
@@ -282,16 +263,14 @@ fn form_button_grid_widget(parent: &mut ChildBuilder, children: impl FnOnce(&mut
 fn button_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
     parent
         .spawn((
-            ButtonBundle {
-                style: Style {
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    padding: UiRect::all(Val::Px(10.)),
-                    ..default()
-                },
-                background_color: css::GRAY.into(),
+            Button,
+            Node {
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::all(Val::Px(10.)),
                 ..default()
             },
+            BackgroundColor(css::GRAY.into()),
             extras,
         ))
         .with_children(|p| {
@@ -301,12 +280,9 @@ fn button_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: im
 
 fn label_widget(parent: &mut ChildBuilder, value: impl Into<String>, extras: impl Bundle) {
     parent
-        .spawn(NodeBundle {
-            style: Style {
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
+        .spawn(Node {
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
             ..default()
         })
         .with_children(|p| {

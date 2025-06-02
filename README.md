@@ -84,7 +84,7 @@ For example, to update a value when a button is clicked:
 fn handle_click_events(mut commands: &mut Commands) {
     // if button was clicked...
     let target = ReflectTarget::new_resource::<ExampleResource>("value");
-    commands.add(move |world: &mut World| {
+    commands.queue(move |world: &mut World| {
         match target.set_value(world, true) {
             Ok(ReflectSetSuccess::Changed) => info!("Success"),
             Ok(ReflectSetSuccess::NoChanges) => warn!("Value not changed"),
@@ -249,6 +249,7 @@ pub enum ReflectSetSuccess {
 
 | `bevy_reflect_utils` | `bevy` |
 |:---------------------|:-------|
+| `0.3`                | `0.15` |
 | `0.2`                | `0.14` |
 | `0.1`                | `0.13` |
 
