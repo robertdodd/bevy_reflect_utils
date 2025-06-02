@@ -88,27 +88,28 @@ impl InteractionColors {
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
 
-    root_full_screen_centered_widget(&mut commands, |p| {
-        interactable_button_widget(p, "Dark Button", DarkButton::default());
-        interactable_button_widget(p, "Light Button", LightButton::default());
-        button_widget(
-            p,
+    commands.spawn(ui_root()).with_children(|p| {
+        p.spawn(interactable_button_widget(
+            "Dark Button",
+            DarkButton::default(),
+        ));
+        p.spawn(interactable_button_widget(
+            "Light Button",
+            LightButton::default(),
+        ));
+        // Spawn a button that is not interactable
+        p.spawn(button_widget(
             "Not Interactable",
-            (),
             css::TURQUOISE,
             css::WHITE,
             css::BLACK,
-        );
-
+        ));
         // Spawn a button that contains both trait components
-        button_widget(
-            p,
-            "Both Traits",
-            (DarkButton::default(), LightButton::default()),
-            css::TURQUOISE,
-            css::WHITE,
-            css::BLACK,
-        );
+        p.spawn((
+            button_widget("Both Traits", css::TURQUOISE, css::WHITE, css::BLACK),
+            DarkButton::default(),
+            LightButton::default(),
+        ));
     });
 }
 
@@ -199,7 +200,7 @@ fn update_interaction_colors(
 
         // Update text color of children
         if let Some(children) = children {
-            for &child in children.iter() {
+            for child in children.iter() {
                 if let Ok(mut text_color) = text_query.get_mut(child) {
                     text_color.0 = colors.text;
                 }
@@ -209,65 +210,49 @@ fn update_interaction_colors(
 }
 
 /// Utility that spawns a full-screen centered column node.
-fn root_full_screen_centered_widget(
-    commands: &mut Commands,
-    children: impl FnOnce(&mut ChildBuilder),
-) {
-    commands
-        .spawn(Node {
-            flex_direction: FlexDirection::Column,
-            width: Val::Percent(100.),
-            height: Val::Percent(100.),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..default()
-        })
-        .with_children(children);
+fn ui_root() -> impl Bundle {
+    Node {
+        flex_direction: FlexDirection::Column,
+        width: Val::Percent(100.),
+        height: Val::Percent(100.),
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        ..default()
+    }
 }
 
 /// Utility that spawns an interactable button widget.
-fn interactable_button_widget(
-    parent: &mut ChildBuilder,
-    value: impl Into<String>,
-    button: impl Component + Interactable,
-) {
+fn interactable_button_widget<T: Into<String>, B: Component + Interactable>(
+    value: T,
+    button: B,
+) -> impl Bundle {
     let colors = button.get_colors(Interaction::None);
-    button_widget(
-        parent,
-        value,
-        (button, colors.clone()),
-        colors.background,
-        colors.border,
-        colors.text,
+    (
+        button_widget(value, colors.background, colors.border, colors.text),
+        button,
     )
 }
 
 /// Utility that spawns a button widget.
-fn button_widget(
-    parent: &mut ChildBuilder,
-    value: impl Into<String>,
-    extras: impl Bundle,
-    background_color: impl Into<Color>,
-    border_color: impl Into<BorderColor>,
-    text_color: impl Into<Color>,
-) {
-    parent
-        .spawn((
-            Button,
-            Node {
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                padding: UiRect::all(Val::Px(10.)),
-                border: UiRect::all(Val::Px(1.)),
-                margin: UiRect::bottom(Val::Px(10.)),
-                min_width: Val::Px(250.),
-                ..default()
-            },
-            BackgroundColor(background_color.into()),
-            border_color.into(),
-            extras,
-        ))
-        .with_children(|p| {
-            p.spawn((Text::new(value), TextColor(text_color.into())));
-        });
+fn button_widget<T: Into<String>, C: Into<Color>>(
+    value: T,
+    background_color: C,
+    border_color: C,
+    text_color: C,
+) -> impl Bundle {
+    (
+        Button,
+        Node {
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            padding: UiRect::all(Val::Px(10.)),
+            border: UiRect::all(Val::Px(1.)),
+            margin: UiRect::bottom(Val::Px(10.)),
+            min_width: Val::Px(250.),
+            ..default()
+        },
+        BackgroundColor(background_color.into()),
+        BorderColor(border_color.into()),
+        children![(Text::new(value), TextColor(text_color.into()))],
+    )
 }
